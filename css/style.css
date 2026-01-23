@@ -1,0 +1,25 @@
+/* General body */
+body {
+    background-color: #f8f9fa;
+}
+
+/* Login card */
+.card {
+    border-radius: 12px;
+}
+
+/* Sidebar */
+.sidebar {
+    min-height: 100vh;
+}
+
+/* Card hover effect */
+.card-hover:hover {
+    transform: scale(1.02);
+    transition: 0.3s;
+}
+
+/* Active link */
+.nav-link.active {
+    font-weight: bold;
+}
