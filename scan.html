@@ -89,6 +89,10 @@
     // Start the scanning process when the page loads
     window.onload = startScan;
 </script>
-
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js");
+}
+</script>
 </body>
 </html>

@@ -10,6 +10,11 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
 </head>
+<script>
+    if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js");
+    }
+</script>
 <body>
 
 <div class="container">
