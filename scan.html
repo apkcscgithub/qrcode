@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QR Code Scanner</title>
+<title>Scan QR Code</title>
 
 <!-- Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -12,82 +12,113 @@
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
 
 <style>
-    body {
-        font-family: Arial, sans-serif;
-        background: #f8f9fa;
-    }
+  body { font-size: 0.9rem; }
 
-    #reader {
-        width: 100%;
-        max-width: 500px;
-        margin: auto;
-        border-radius: 12px;
-        overflow: hidden;
-    }
+  .sidebar {
+    height: 100vh;
+    background-color: #f8f9fa;
+  }
 
-    /* Fix stretched / split camera */
-    #reader video {
-        width: 100% !important;
-        height: auto !important;
-        object-fit: cover;
-    }
+  #reader {
+    max-width: 420px;
+    margin: auto;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  #reader video {
+    width: 100% !important;
+    object-fit: cover;
+  }
 </style>
 </head>
+
 <body>
 
+<!-- Navbar -->
 <nav class="navbar navbar-dark bg-dark">
-    <div class="container-fluid">
-        <span class="navbar-brand">QR Code Scanner</span>
-    </div>
+  <div class="container-fluid">
+    <span class="navbar-brand mb-0 h1">GS1 QR System</span>
+    <a class="btn btn-outline-light btn-sm" href="dashboard.html">Back to Dashboard</a>
+  </div>
 </nav>
 
-<div class="container mt-4 text-center">
-    <h3>Scan a QR Code</h3>
+<div class="container-fluid">
+  <div class="row">
 
-    <div id="reader" class="mt-3"></div>
-
-    <div class="mt-3">
-        <button class="btn btn-success" onclick="startScan()">Start Scan</button>
-        <button class="btn btn-danger d-none" id="stopBtn" onclick="stopScan()">Stop Scan</button>
+    <!-- Sidebar -->
+    <div class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+      <div class="position-sticky p-3">
+        <ul class="nav flex-column">
+          <li class="nav-item">
+            <a class="nav-link" href="dashboard.html">Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="generate.html">Generate QR / Data Entry</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" href="scan.html">Scan QR</a>
+          </li>
+        </ul>
+      </div>
     </div>
 
-    <div class="mt-4">
-        <h5>QR Code Data:</h5>
-        <pre id="qrData">Waiting for scan...</pre>
-    </div>
+    <!-- Main Content -->
+    <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+      <h2 class="mt-4">Scan QR Code</h2>
+      <p class="text-muted">Scan GS1 QR codes using your device camera</p>
+
+      <div class="text-center mt-4">
+        <div id="reader"></div>
+
+        <div class="mt-3">
+          <button class="btn btn-success" onclick="startScan()">Start Scan</button>
+          <button class="btn btn-danger d-none" id="stopBtn" onclick="stopScan()">Stop Scan</button>
+        </div>
+
+        <div class="mt-4">
+          <h6>Scanned Data:</h6>
+          <pre id="qrData" class="bg-light p-3 border rounded">Waiting for scan...</pre>
+        </div>
+      </div>
+    </main>
+
+  </div>
 </div>
 
 <script>
 let qr;
 
 function startScan() {
-    qr = new Html5Qrcode("reader");
+  qr = new Html5Qrcode("reader");
 
-    qr.start(
-        { facingMode: "environment" },
-        {
-            fps: 15,
-            qrbox: { width: 350, height: 350 } // BIGGER scan area
-        },
-        (decodedText) => {
-            document.getElementById("qrData").innerText = decodedText;
-            stopScan();
-        },
-        () => {}
-    ).then(() => {
-        document.getElementById("stopBtn").classList.remove("d-none");
-    }).catch(err => {
-        alert("Camera error: " + err);
-    });
+  qr.start(
+    { facingMode: "environment" },
+    {
+      fps: 15,
+      qrbox: { width: 320, height: 320 }
+    },
+    (decodedText) => {
+      document.getElementById("qrData").innerText = decodedText;
+      stopScan();
+    },
+    () => {}
+  ).then(() => {
+    document.getElementById("stopBtn").classList.remove("d-none");
+  }).catch(err => {
+    alert("Camera error: " + err);
+  });
 }
 
 function stopScan() {
-    if (!qr) return;
-    qr.stop().then(() => {
-        document.getElementById("stopBtn").classList.add("d-none");
-    });
+  if (!qr) return;
+  qr.stop().then(() => {
+    document.getElementById("stopBtn").classList.add("d-none");
+  });
 }
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
 </html>
