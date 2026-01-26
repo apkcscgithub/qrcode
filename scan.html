@@ -3,59 +3,91 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QR Scanner</title>
+<title>QR Code Scanner</title>
 
+<!-- Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- HTML5 QR Code -->
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
 
 <style>
-  body { font-family: Arial; }
-  #reader { max-width: 400px; margin: auto; }
+    body {
+        font-family: Arial, sans-serif;
+        background: #f8f9fa;
+    }
+
+    #reader {
+        width: 100%;
+        max-width: 500px;
+        margin: auto;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    /* Fix stretched / split camera */
+    #reader video {
+        width: 100% !important;
+        height: auto !important;
+        object-fit: cover;
+    }
 </style>
 </head>
 <body>
 
-<div class="container text-center mt-4">
-  <h3>QR Code Scanner</h3>
+<nav class="navbar navbar-dark bg-dark">
+    <div class="container-fluid">
+        <span class="navbar-brand">QR Code Scanner</span>
+    </div>
+</nav>
 
-  <div id="reader"></div>
+<div class="container mt-4 text-center">
+    <h3>Scan a QR Code</h3>
 
-  <div class="mt-3">
-    <button class="btn btn-success" onclick="startScan()">Start Scan</button>
-    <button class="btn btn-danger d-none" id="stopBtn" onclick="stopScan()">Stop</button>
-  </div>
+    <div id="reader" class="mt-3"></div>
 
-  <pre class="mt-3" id="result">No result</pre>
+    <div class="mt-3">
+        <button class="btn btn-success" onclick="startScan()">Start Scan</button>
+        <button class="btn btn-danger d-none" id="stopBtn" onclick="stopScan()">Stop Scan</button>
+    </div>
+
+    <div class="mt-4">
+        <h5>QR Code Data:</h5>
+        <pre id="qrData">Waiting for scan...</pre>
+    </div>
 </div>
 
 <script>
-const qr = new Html5Qrcode("reader");
+let qr;
 
 function startScan() {
-  qr.start(
-    { facingMode: "environment" },
-    { fps: 15, qrbox: 250 },
-    text => {
-      document.getElementById("result").innerText = text;
-      stopScan();
-    }
-  ).then(() => {
-    document.getElementById("stopBtn").classList.remove("d-none");
-  }).catch(err => {
-    alert("Camera error: " + err);
-  });
+    qr = new Html5Qrcode("reader");
+
+    qr.start(
+        { facingMode: "environment" },
+        {
+            fps: 15,
+            qrbox: { width: 350, height: 350 } // BIGGER scan area
+        },
+        (decodedText) => {
+            document.getElementById("qrData").innerText = decodedText;
+            stopScan();
+        },
+        () => {}
+    ).then(() => {
+        document.getElementById("stopBtn").classList.remove("d-none");
+    }).catch(err => {
+        alert("Camera error: " + err);
+    });
 }
 
 function stopScan() {
-  qr.stop().then(() => {
-    document.getElementById("stopBtn").classList.add("d-none");
-  });
+    if (!qr) return;
+    qr.stop().then(() => {
+        document.getElementById("stopBtn").classList.add("d-none");
+    });
 }
 </script>
-<script>
-    if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("service-worker.js");
-    }
-</script>
+
 </body>
 </html>
