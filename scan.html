@@ -8,8 +8,8 @@
 <!-- Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-<!-- HTML5 QR Code -->
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
+<!-- ✅ HTML5 QR Code (CORRECT MIME TYPE) -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <style>
   body { font-size: 0.9rem; }
@@ -35,7 +35,6 @@
 
 <body>
 
-<!-- Navbar -->
 <nav class="navbar navbar-dark bg-dark">
   <div class="container-fluid">
     <span class="navbar-brand mb-0 h1">GS1 QR System</span>
@@ -50,15 +49,9 @@
     <div class="col-md-3 col-lg-2 d-md-block sidebar collapse">
       <div class="position-sticky p-3">
         <ul class="nav flex-column">
-          <li class="nav-item">
-            <a class="nav-link" href="dashboard.html">Dashboard</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="generate.html">Generate QR / Data Entry</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link active" href="scan.html">Scan QR</a>
-          </li>
+          <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link" href="generate.html">Generate QR / Data Entry</a></li>
+          <li class="nav-item"><a class="nav-link active" href="scan.html">Scan QR</a></li>
         </ul>
       </div>
     </div>
@@ -87,18 +80,17 @@
 </div>
 
 <script>
-let qr;
+let qr = null;
 
 function startScan() {
+  if (qr) return;
+
   qr = new Html5Qrcode("reader");
 
   qr.start(
     { facingMode: "environment" },
-    {
-      fps: 15,
-      qrbox: { width: 320, height: 320 }
-    },
-    (decodedText) => {
+    { fps: 15, qrbox: { width: 320, height: 320 } },
+    decodedText => {
       document.getElementById("qrData").innerText = decodedText;
       stopScan();
     },
@@ -107,6 +99,7 @@ function startScan() {
     document.getElementById("stopBtn").classList.remove("d-none");
   }).catch(err => {
     alert("Camera error: " + err);
+    qr = null;
   });
 }
 
@@ -114,6 +107,7 @@ function stopScan() {
   if (!qr) return;
   qr.stop().then(() => {
     document.getElementById("stopBtn").classList.add("d-none");
+    qr = null;
   });
 }
 </script>
