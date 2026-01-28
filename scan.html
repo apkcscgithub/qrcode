@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scan QR Code</title>
+<title>Scan GS1 QR Code</title>
 
 <!-- Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-<!-- ✅ HTML5 QR Code (CORRECT MIME TYPE) -->
+<!-- HTML5 QR Code -->
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <style>
@@ -30,6 +30,8 @@
     width: 100% !important;
     object-fit: cover;
   }
+
+  pre { white-space: pre-wrap; word-break: break-word; }
 </style>
 </head>
 
@@ -58,8 +60,8 @@
 
     <!-- Main Content -->
     <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-      <h2 class="mt-4">Scan QR Code</h2>
-      <p class="text-muted">Scan GS1 QR codes using your device camera</p>
+      <h2 class="mt-4">Scan GS1 QR Code</h2>
+      <p class="text-muted">Scan GS1 QR codes (numeric, AI format) using your camera</p>
 
       <div class="text-center mt-4">
         <div id="reader"></div>
@@ -82,6 +84,7 @@
 <script>
 let qr = null;
 
+// Start scanning using camera
 function startScan() {
   if (qr) return;
 
@@ -100,32 +103,20 @@ function startScan() {
   });
 }
 
+// Handle GS1 scan
 function handleScan(decodedText) {
   document.getElementById("qrData").innerText = decodedText;
 
-  let parsed;
-  try {
-    parsed = JSON.parse(decodedText);
-  } catch {
-    alert("QR must be JSON formatted");
-    stopScan();
-    return;
-  }
+  // Optional: parse GS1 AIs
+  const parsed = parseGS1(decodedText);
 
+  console.log("Parsed GS1 Data:", parsed);
+
+  // Save to Google Sheet (replace your endpoint)
   fetch("https://script.google.com/macros/s/AKfycbwKdMFcw96vMxTzg4EnMtJ3qo9TSagY53ZCTND0yH0xFPIX2EWY5kHdF6vkf4dmUJo/exec", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      qrData: decodedText,
-      innerPackId: parsed.innerPackId,
-      parentMasterCarton: parsed.parentMasterCarton,
-      bookingId: parsed.bookingId,
-      size: parsed.size,
-      expiryDate: parsed.expiryDate,
-      mfdDate: parsed.mfdDate,
-      netWeight: parsed.netWeight,
-      grossWeight: parsed.grossWeight
-    })
+    body: JSON.stringify(parsed)
   })
   .then(res => res.json())
   .then(() => alert("Saved to Google Sheet ✔"))
@@ -134,6 +125,7 @@ function handleScan(decodedText) {
   stopScan();
 }
 
+// Stop camera
 function stopScan() {
   if (!qr) return;
   qr.stop().then(() => {
@@ -141,9 +133,66 @@ function stopScan() {
     qr = null;
   });
 }
+
+// Parse GS1 numeric QR (basic AI parser)
+function parseGS1(str) {
+  const result = {};
+  let i = 0;
+
+  while (i < str.length) {
+    const ai = str.slice(i, i+2);
+    i += 2;
+
+    switch(ai) {
+      case "01": // GTIN / Booking ID
+        result.bookingId = str.slice(i, i+14);
+        i += 14;
+        break;
+      case "02": // Export Carton
+        result.exportCartonId = str.slice(i, i+6); // adjust length
+        i += 6;
+        break;
+      case "03": // Master Carton
+        result.masterCartonId = str.slice(i, i+6);
+        i += 6;
+        break;
+      case "04": // Inner Pack
+        result.innerPackId = str.slice(i, i+6);
+        i += 6;
+        break;
+      case "10": // batch / customer
+        // variable length: until FNC1
+        const fnc1 = str.indexOf("\u001D", i);
+        result.customer = fnc1 > -1 ? str.slice(i, fnc1) : str.slice(i);
+        i = fnc1 > -1 ? fnc1+1 : str.length;
+        break;
+      case "11": // Production Date YYMMDD
+        result.mfdDate = str.slice(i, i+6);
+        i += 6;
+        break;
+      case "17": // Expiry Date YYMMDD
+        result.expiryDate = str.slice(i, i+6);
+        i += 6;
+        break;
+      case "31": // Weight
+        const subAI = str.slice(i-2,i+2); // 3101,3103,3104
+        if (subAI === "3103") { result.netWeight = str.slice(i+2,i+8); i+=6; }
+        else if (subAI === "3104") { result.grossWeight = str.slice(i+2,i+8); i+=6; }
+        break;
+      case "91": // variable custom
+        result.size = str.slice(i);
+        i = str.length;
+        break;
+      default:
+        console.warn("Unknown AI:", ai);
+        i = str.length;
+    }
+  }
+
+  return result;
+}
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
 </body>
 </html>
