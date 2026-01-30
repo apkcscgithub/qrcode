@@ -1,15 +1,18 @@
-const FNC1 = "\u001D"; // only for variable-length fields
+const FNC1 = "\u001D"; // Only for variable-length fields
 
 /* ================= VALIDATION ================= */
 function validateAllData() {
   const bookingId = document.getElementById("bookingId").value.trim();
   const customerName = document.getElementById("customerName").value.trim();
   const address = document.getElementById("address").value.trim();
-  const tpNo = document.getElementById("tpNo").value.trim();
+  //const tpNo = document.getElementById("tpNo").value.trim();
+  const shipmentNo = document.getElementById("shipmentNo").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const phone = document.getElementById("phone").value.trim();
   const orderDate = toGS1Date(document.getElementById("orderDate").value);
   const deliveryDate = toGS1Date(document.getElementById("deliveryDate").value);
 
-  if (!bookingId || !customerName || !address || !tpNo || !orderDate || !deliveryDate) {
+  if (!bookingId || !customerName || !address || !shipmentNo || !orderDate || !deliveryDate || !email || !phone) {
     alert("Fill all Main Details");
     return false;
   }
@@ -50,22 +53,29 @@ async function generateGS1QR() {
   const zip = new JSZip();
   const qrSize = +document.getElementById("qrSize").value || 200;
 
-  const bookingId = document.getElementById("bookingId").value;
-  const customer = document.getElementById("customerName").value;
-  const address = document.getElementById("address").value;
-  const tpNo = document.getElementById("tpNo").value;
-  const orderDate = toGS1Date(document.getElementById("orderDate").value);
-  const deliveryDate = toGS1Date(document.getElementById("deliveryDate").value);
-  const notes = document.getElementById("notes").value.trim();
+  const bookingId = document.getElementById("bookingId").value.padStart(14,'0'); // 01
+  const customer = document.getElementById("customerName").value; // 91
+  const address = document.getElementById("address").value; // 92
+  //const tpNo = document.getElementById("tpNo").value.padStart(6,'0');
+  const shipmentNo = document.getElementById("shipmentNo").value.trim(); // 93
+  const email = document.getElementById("email").value.trim(); // 94 
+  const phone = document.getElementById("phone").value.trim(); // 95
+  const orderDate = toGS1Date(document.getElementById("orderDate").value); // 96
+  const deliveryDate = toGS1Date(document.getElementById("deliveryDate").value); // 12
+  const notes = document.getElementById("notes").value.trim(); // 97
 
-  // ---------------- MAIN QR (scanner-ready numeric) ----------------
-  // Example: 01<GTIN>17<Exp>11<Prod>3101<NetWeight> FNC1 used for variable fields
+  // ---------------- MAIN QR ----------------
   const mainQR = 
-    `01${bookingId}` +      // GTIN = BookingId
-    `17${deliveryDate}` +   // Expiration
-    `11${orderDate}` +      // Production
-    `3101${tpNo.padStart(6,'0')}` + // Net weight placeholder
-    `10${customer}${FNC1}91${notes}`; // batch/notes variable
+    `01${bookingId}${FNC1}` +            // Booking ID / GTIN
+    `12${deliveryDate}${FNC1}` +         // Expiration Date
+    `96${orderDate}${FNC1}` +            // Production Date
+    `91${customer}${FNC1}` +             // customer Name
+    `92${address}${FNC1}` +              // address variable fields use FNC1
+    `93${shipmentNo}${FNC1}` +           // shipmentNo variable fields use FNC1
+    `94${email}${FNC1}` +                // email variable fields use FNC1
+    `95${phone}${FNC1}` +                // phone variable fields use FNC1
+    `97${notes}`;              // Net weight placeholder
+   
 
   await createQR(output, zip, qrSize, "MAIN", mainQR, `Main_${bookingId}.png`);
 
@@ -74,8 +84,7 @@ async function generateGS1QR() {
   for (const r of cartonRows) {
     const ecId = r.querySelector(".carton-id-input").value;
     const maxMaster = r.cells[2].querySelector("input").value;
-
-    const exportQR = `01${bookingId}02${ecId}30${maxMaster}`;
+    const exportQR = `01${bookingId}${FNC1}98${ecId}${FNC1}37${maxMaster}`; // 01 , 98  , 37 
     await createQR(output, zip, qrSize, `Export ${ecId}`, exportQR, `Export_${ecId}.png`);
   }
 
@@ -85,8 +94,7 @@ async function generateGS1QR() {
     const mcId = r.cells[0].querySelector("input").value;
     const ecId = r.cells[1].querySelector("select").value;
     const maxInner = r.cells[3].querySelector("input").value;
-
-    const masterQR = `01${bookingId}02${ecId}03${mcId}30${maxInner}`;
+    const masterQR = `01${bookingId}${FNC1}98${ecId}${FNC1}99${mcId}${FNC1}38${maxInner}`; // 01 , 98, 99, 38
     await createQR(output, zip, qrSize, `Master ${mcId}`, masterQR, `Master_${mcId}.png`);
   }
 
@@ -96,21 +104,21 @@ async function generateGS1QR() {
     const i = r.querySelectorAll("input, select");
     const innerId = i[0].value;
     const mcId = i[1].value;
-    const size = i[3].value;
+    const size = i[3].value.padStart(6,'0');
     const exp = toGS1Date(i[4].value);
     const mfd = toGS1Date(i[5].value);
-    const net = i[6].value.padStart(6,'0'); // net weight AI 3103
-    const gross = i[7].value.padStart(6,'0'); // gross weight AI 3104
+    const net = i[6].value.padStart(6,'0');   // 3103 fixed 6-digit
+    const gross = i[7].value.padStart(6,'0'); // 3104 fixed 6-digit
 
     const innerQR = 
-      `01${bookingId}` +
-      `03${mcId}` +
-      `04${innerId}` +
-      `11${mfd}` +
-      `17${exp}` +
-      `3103${net}` +
-      `3104${gross}` +
-      `91SIZE:${size}`; // variable-length field uses FNC1 implicitly
+      `01${bookingId}${FNC1}` +
+      `99${mcId}${FNC1}` +
+      `31${innerId}${FNC1}` +
+      `11${mfd}${FNC1}` +
+      `17${exp}${FNC1}` +
+      `3102${net}${FNC1}` +
+      `3104${gross}${FNC1}` +
+      `3112${size}`; // variable-length uses FNC1
 
     await createQR(output, zip, qrSize, `Inner ${innerId}`, innerQR, `Inner_${innerId}.png`);
   }

@@ -13,30 +13,15 @@
 
 <style>
   body { font-size: 0.9rem; }
-
-  .sidebar {
-    height: 100vh;
-    background-color: #f8f9fa;
-  }
-
-  #reader {
-    max-width: 420px;
-    margin: auto;
-    border-radius: 12px;
-    overflow: hidden;
-  }
-
-  #reader video {
-    width: 100% !important;
-    object-fit: cover;
-  }
-
+  .sidebar { height: 100vh; background-color: #f8f9fa; }
+  #reader { max-width: 420px; margin: auto; border-radius: 12px; overflow: hidden; }
+  #reader video { width: 100% !important; object-fit: cover; }
   pre { white-space: pre-wrap; word-break: break-word; }
 </style>
 </head>
-
 <body>
 
+<!-- NAVBAR -->
 <nav class="navbar navbar-dark bg-dark">
   <div class="container-fluid">
     <span class="navbar-brand mb-0 h1">GS1 QR System</span>
@@ -47,7 +32,7 @@
 <div class="container-fluid">
   <div class="row">
 
-    <!-- Sidebar -->
+    <!-- SIDEBAR -->
     <div class="col-md-3 col-lg-2 d-md-block sidebar collapse">
       <div class="position-sticky p-3">
         <ul class="nav flex-column">
@@ -58,22 +43,29 @@
       </div>
     </div>
 
-    <!-- Main Content -->
+    <!-- MAIN CONTENT -->
     <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
       <h2 class="mt-4">Scan GS1 QR Code</h2>
-      <p class="text-muted">Scan GS1 QR codes (numeric, AI format) using your camera</p>
+      <p class="text-muted">Scan GS1 QR codes using camera or upload an image. Duplicate scans are blocked.</p>
 
       <div class="text-center mt-4">
         <div id="reader"></div>
 
         <div class="mt-3">
-          <button class="btn btn-success" onclick="startScan()">Start Scan</button>
-          <button class="btn btn-danger d-none" id="stopBtn" onclick="stopScan()">Stop Scan</button>
+          <button class="btn btn-success" onclick="startScan()">Start Camera Scan</button>
+          <button class="btn btn-danger d-none" id="stopBtn" onclick="stopScan()">Stop Camera</button>
+        </div>
+
+        <div class="mt-3">
+          <label class="btn btn-primary">
+            Upload QR Image
+            <input type="file" id="fileInput" accept="image/*" style="display:none">
+          </label>
         </div>
 
         <div class="mt-4">
           <h6>Scanned Data:</h6>
-          <pre id="qrData" class="bg-light p-3 border rounded">Waiting for scan...</pre>
+          <pre id="qrData">Waiting for scan...</pre>
         </div>
       </div>
     </main>
@@ -83,114 +75,381 @@
 
 <script>
 let qr = null;
+const scannedSet = new Set(); // session duplicate blocker
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycby0hvpqXqAmp80o2tYRehXQLRCVKWED4bBokKJZFyGInhGzBUa7vJ_dZKMnEuraUkqz/exec"; // replace with your deployed Web App URL
 
-// Start scanning using camera
-function startScan() {
-  if (qr) return;
-
+function startScan(){
+  if(qr) return;
   qr = new Html5Qrcode("reader");
-
-  qr.start(
-    { facingMode: "environment" },
-    { fps: 15, qrbox: 320 },
+  qr.start({facingMode:"environment"}, {fps:15, qrbox:320},
     decodedText => handleScan(decodedText),
     () => {}
-  ).then(() => {
-    document.getElementById("stopBtn").classList.remove("d-none");
-  }).catch(err => {
-    alert("Camera error: " + err);
-    qr = null;
+  ).then(()=>document.getElementById("stopBtn").classList.remove("d-none"))
+   .catch(err=>{alert("Camera error: "+err); qr=null;});
+}
+
+function stopScan(){
+  if(!qr) return;
+  qr.stop().then(()=>{
+    document.getElementById("stopBtn").classList.add("d-none");
+    qr=null;
   });
 }
 
-// Handle GS1 scan
-function handleScan(decodedText) {
+async function handleScan(decodedText){
+  if(scannedSet.has(decodedText)){
+    alert("⚠️ Duplicate QR detected in this session!");
+    stopScan();
+    return;
+  }
+  scannedSet.add(decodedText);
+
   document.getElementById("qrData").innerText = decodedText;
 
-  // Optional: parse GS1 AIs
-  const parsed = parseGS1(decodedText);
+  let parsedQR = {};
+  try{ 
+    //parsedQR = JSON.parse(decodedText);
+    parsedQR = parseGS1(decodedText);  
+    //console.log("split", decodedText.split("\u001D"))
+  }catch{ 
+    parsedQR = parseGS1(decodedText); 
+  }
 
-  console.log("Parsed GS1 Data:", parsed);
+  const extraFields = {
+    bookingId: parsedQR.bookingId || "",
+    customerName: parsedQR.customerName || "",
+    address: parsedQR.address || "",
+    shipmentNo: parsedQR.shipmentNo || "",
+    email: parsedQR.email || "",
+    phone: parsedQR.phone || "",
+    orderDate: parsedQR.orderDate || "",
+    deliveryDate: parsedQR.deliveryDate || "",
+    notes: parsedQR.notes || "",
+    cartonId: parsedQR.cartonId || "",
+    noOfMasterCartonPack: parsedQR.noOfMasterCartonPack || "",
+    masterCartonId: parsedQR.masterCartonId || "",
+    noOfInnerPack: parsedQR.noOfInnerPack || "",
+    innerPackId: parsedQR.innerPackId || "",
+    size: parsedQR.size || "",
+    expiryDate: parsedQR.expiryDate || "",
+    mfdDate: parsedQR.mfdDate || "",
+    netWeight: parsedQR.netWeight || "",
+    grossWeight: parsedQR.grossWeight || ""
+  };
+  //console.log(extraFields)
+  /*try {
+    const res = await fetch(WEB_APP_URL, {
+      method:"POST",
+     // mode: "no-cors",
+      //headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(extraFields)
+    });
+    const json = await res.json();
+    console.log(json)
+    if(json.status==="duplicate") alert("⚠️ Duplicate QR already in Google Sheet!");
+    else if(json.status==="ok") alert("✅ Saved to Google Sheet");
+  } catch(e){
+    alert("❌ Error saving data: "+e);
+  }*/
+    
+    try {
+			const response = await fetch(WEB_APP_URL, {
+			  method: "POST",
+			  /*headers: {
+				"Content-Type": "application/json"
+			  },*/
+			  body: JSON.stringify(extraFields)
+			});
 
-  // Save to Google Sheet (replace your endpoint)
-  fetch("https://script.google.com/macros/s/AKfycbwKdMFcw96vMxTzg4EnMtJ3qo9TSagY53ZCTND0yH0xFPIX2EWY5kHdF6vkf4dmUJo/exec", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(parsed)
-  })
-  .then(res => res.json())
-  .then(() => alert("Saved to Google Sheet ✔"))
-  .catch(() => alert("Error saving data"));
+			const text = await response.json();
+			//console.log(text);
+      if(text.status==="error") alert("❌"+text.message);
+      else if(text.status==="success") alert("✅ Saved to Google Sheet");
+			//alert("Sent successfully ✅");
+
+		} catch (error) {
+			console.error(error);
+			alert("Error sending data ❌");
+		}
 
   stopScan();
 }
 
-// Stop camera
-function stopScan() {
-  if (!qr) return;
-  qr.stop().then(() => {
-    document.getElementById("stopBtn").classList.add("d-none");
-    qr = null;
-  });
-}
+const FNC1 = "\u001D";
 
-// Parse GS1 numeric QR (basic AI parser)
-function parseGS1(str) {
-  const result = {};
+function parseGS1_0(gs1) {
+  const data = {};
   let i = 0;
 
-  while (i < str.length) {
-    const ai = str.slice(i, i+2);
-    i += 2;
+  while (i < gs1.length) {
+    const ai2 = gs1.slice(i, i + 2);
+    const ai3 = gs1.slice(i, i + 3);
+    const ai4 = gs1.slice(i, i + 4);
 
-    switch(ai) {
-      case "01": // GTIN / Booking ID
-        result.bookingId = str.slice(i, i+14);
-        i += 14;
-        break;
-      case "02": // Export Carton
-        result.exportCartonId = str.slice(i, i+6); // adjust length
-        i += 6;
-        break;
-      case "03": // Master Carton
-        result.masterCartonId = str.slice(i, i+6);
-        i += 6;
-        break;
-      case "04": // Inner Pack
-        result.innerPackId = str.slice(i, i+6);
-        i += 6;
-        break;
-      case "10": // batch / customer
-        // variable length: until FNC1
-        const fnc1 = str.indexOf("\u001D", i);
-        result.customer = fnc1 > -1 ? str.slice(i, fnc1) : str.slice(i);
-        i = fnc1 > -1 ? fnc1+1 : str.length;
-        break;
-      case "11": // Production Date YYMMDD
-        result.mfdDate = str.slice(i, i+6);
-        i += 6;
-        break;
-      case "17": // Expiry Date YYMMDD
-        result.expiryDate = str.slice(i, i+6);
-        i += 6;
-        break;
-      case "31": // Weight
-        const subAI = str.slice(i-2,i+2); // 3101,3103,3104
-        if (subAI === "3103") { result.netWeight = str.slice(i+2,i+8); i+=6; }
-        else if (subAI === "3104") { result.grossWeight = str.slice(i+2,i+8); i+=6; }
-        break;
-      case "91": // variable custom
-        result.size = str.slice(i);
-        i = str.length;
-        break;
-      default:
-        console.warn("Unknown AI:", ai);
-        i = str.length;
+    /* ===== FIXED LENGTH ===== */
+    if (ai2 === "01") {                // Booking ID
+      i += 2;
+      data.bookingId = gs1.slice(i, i + 14);
+      i += 14;
     }
+
+    else if (ai2 === "11") {           // MFD
+      i += 2;
+      data.mfdDate = gs1.slice(i, i + 6);
+      i += 6;
+    }
+
+    else if (ai2 === "17") {           // Expiry
+      i += 2;
+      data.expiryDate = gs1.slice(i, i + 6);
+      i += 6;
+    }
+
+    else if (ai4 === "3103") {         // Net Weight
+      i += 4;
+      const w = gs1.slice(i, i + 6);
+      data.netWeight = (parseInt(w) / 1000) + " kg";
+      i += 6;
+    }
+
+    else if (ai4 === "3104") {         // Gross Weight
+      i += 4;
+      const w = gs1.slice(i, i + 6);
+      data.grossWeight = (parseInt(w) / 1000) + " kg";
+      i += 6;
+    }
+
+    /* ===== VARIABLE LENGTH ===== */
+    else if (ai2 === "10") {           // Customer Name
+      i += 2;
+      const end = gs1.indexOf(FNC1, i);
+      data.customerName = end > -1 ? gs1.slice(i, end) : gs1.slice(i);
+      i = end > -1 ? end + 1 : gs1.length;
+    }
+
+    else if (ai2 === "91") {           // Notes / Size
+      i += 2;
+      const end = gs1.indexOf(FNC1, i);
+      const v = end > -1 ? gs1.slice(i, end) : gs1.slice(i);
+
+      if (v.startsWith("SIZE:")) {
+        data.size = v.replace("SIZE:", "");
+      } else {
+        data.notes = v;
+      }
+      i = end > -1 ? end + 1 : gs1.length;
+    }
+
+    /* ===== CUSTOM IDS ===== */
+    else if (ai2 === "02") {           // Export Carton ID
+      i += 2;
+      data.cartonId = gs1.slice(i, i + 6);
+      i += 6;
+    }
+
+    else if (ai2 === "03") {           // Master Carton ID
+      i += 2;
+      data.masterCartonId = gs1.slice(i, i + 6);
+      i += 6;
+    }
+
+    else if (ai2 === "04") {           // Inner Pack ID
+      i += 2;
+      data.innerPackId = gs1.slice(i, i + 6);
+      i += 6;
+    }
+
+    else {
+      console.warn("Unknown AI:", gs1.slice(i));
+      break;
+    }
+  }
+
+  return data;
+}
+/*
+function parseGS1(gs1String) {
+    // Mapping of AI -> [field name, type, decimals]
+    const aiMap = {
+        "01": ["bookingId", "fixed", null],
+        "91": ["customerName", "variable", null],
+        "92": ["address", "variable", null],
+        "93": ["Shipment No", "variable", null],
+        "94": ["Email", "variable", null],
+        "95": ["Phone", "variable", null],
+        "96": ["Order Date", "date", null],
+        "12": ["Delivery Date", "date", null],
+        "97": ["Notes", "variable", null],
+        "98": ["Carton ID", "variable", null],
+        "37": ["No of Master Carton Pack", "fixed", null],
+        "99": ["masterCartonId", "variable", null],
+        "38": ["No of Inner Pack", "fixed", null],
+        "31": ["innerPackId", "variable", null],
+        "3112": ["size", "decimal", 2],
+        "17": ["expiryDate", "date", null],
+        "11": ["mfdDate", "date", null],
+        "3102": ["netWeight", "decimal", 2],
+        "3302": ["grossWeight", "decimal", 2]
+    };
+
+    // Replace ␝ with ASCII 29 if needed
+    //const fnc1 = String.fromCharCode(29);
+    const fnc1 = "\u001D";
+    gs1String = gs1String.replace(/␝/g, fnc1);
+
+    const result = {};
+    let i = 0;
+
+    while (i < gs1String.length) {
+        // Match AI: 2-4 digits
+        const aiMatch = gs1String.slice(i).match(/^\d{2,4}/);
+        if (!aiMatch) break;
+
+        const ai = aiMatch[0];
+        const [fieldName, fieldType, decimals] = aiMap[ai] || [`Unknown ${ai}`, "text", null];
+        i += ai.length;
+
+        let value = "";
+
+        if (fieldType === "fixed") {
+            let valueLen = 6; // default
+            if (ai === "01") valueLen = 14;
+            else if (["3112","3102","3302"].includes(ai)) valueLen = 6;
+            else if (["37","38"].includes(ai)) valueLen = 2;
+            else if (["12","17","11","96"].includes(ai)) valueLen = 6;
+            value = gs1String.substr(i, valueLen);
+            i += valueLen;
+        } else if (fieldType === "variable") {
+            const end = gs1String.indexOf(fnc1, i);
+            if (end === -1) {
+                value = gs1String.slice(i);
+                i = gs1String.length;
+            } else {
+                value = gs1String.slice(i, end);
+                i = end + 1;
+            }
+        } else if (fieldType === "decimal") {
+            value = gs1String.substr(i, 6);
+            i += 6;
+            value = (parseInt(value, 10) / Math.pow(10, decimals)).toFixed(decimals);
+        } else if (fieldType === "date") {
+            value = gs1String.substr(i, 6);
+            i += 6;
+            const year = "20" + value.slice(0, 2);
+            const month = value.slice(2, 4);
+            const day = value.slice(4, 6);
+            value = `${day}-${month}-${year}`;
+        } else {
+            value = gs1String.slice(i);
+            i = gs1String.length;
+        }
+
+        result[fieldName] = value;
+    }
+
+    return result;
+}*/
+function parseGS1(gs1String) {
+  const FNC1 = String.fromCharCode(29); // ASCII 29
+
+  // Normalize FNC1 characters
+  gs1String = gs1String.replace(/␝|\x1D|\u001D/g, FNC1);
+
+  const aiMap = {
+    "01": ["bookingId", "fixed", 14],
+    "91": ["customerName", "variable"],
+    "92": ["address", "variable"],
+    "93": ["shipmentNo", "variable"],
+    "94": ["email", "variable"],
+    "95": ["phone", "variable"],
+    "96": ["orderDate", "date"],
+    "12": ["deliveryDate", "date"],
+    "97": ["notes", "variable"],
+    "98": ["cartonId", "variable"],
+    "37": ["noOfMasterCartonPack", "fixed", 2],
+    "99": ["masterCartonId", "variable"],
+    "38": ["noOfInnerPack", "fixed", 2],
+    "31": ["innerPackId", "variable"],
+    "3112": ["size", "decimal"],
+    "17": ["expiryDate", "date"],
+    "11": ["mfdDate", "date"],
+    "3102": ["netWeight", "decimal", 2],
+    "3104": ["grossWeight", "decimal", 2]
+  };
+
+  const result = {};
+  let i = 0;
+  
+  while (i < gs1String.length) {
+    // Skip any leading FNC1
+    while(gs1String[i] === FNC1) i++;
+      if(i >= gs1String.length) break;
+
+      let ai = null;
+
+      // Try 4->3->2 digit AI match
+      for (let len = 4; len >= 2; len--) {
+          const sub = gs1String.substr(i, len);
+          if (aiMap[sub]) { ai = sub; break; }
+      }
+
+      if (!ai) {
+          console.warn("Unknown AI at position", i, gs1String.substr(i, 10));
+          break;
+      }
+
+      const [fieldName, type, param] = aiMap[ai];
+      i += ai.length;
+
+      let value = "";
+
+      if (type === "fixed") {
+          value = gs1String.substr(i, param);
+          i += param;
+      } else if (type === "variable") {
+          const end = gs1String.indexOf(FNC1, i);
+          if (end === -1) {
+              value = gs1String.slice(i);
+              i = gs1String.length;
+          } else {
+              value = gs1String.slice(i, end);
+              i = end + 1; // skip FNC1
+          }
+      } else if (type === "decimal") {
+          const raw = gs1String.substr(i, 6);
+          i += 6;
+          if (fieldName === "size") {
+              // Keep size as raw string, no division
+              value = raw;
+          } else {
+              value = (parseInt(raw, 10) / Math.pow(10, param)).toFixed(param);
+          }
+          //value = (parseInt(raw, 10) / Math.pow(10, param)).toFixed(param);
+      } else if (type === "date") {
+          const raw = gs1String.substr(i, 6);
+          i += 6;
+          const yy = "20" + raw.slice(0, 2);
+          const mm = raw.slice(2, 4);
+          const dd = raw.slice(4, 6);
+          value = `${dd}-${mm}-${yy}`;
+      }
+
+      result[fieldName] = value;
   }
 
   return result;
 }
+
+
+// File upload scan
+document.getElementById("fileInput").addEventListener("change", async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const html5Qr = new Html5Qrcode("reader");
+  try{ const result = await html5Qr.scanFile(file,true); handleScan(result); }
+  catch(err){alert("Failed scan: "+err);}
+  finally{ html5Qr.clear(); }
+});
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
